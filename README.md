@@ -2,7 +2,7 @@
 
 A simple Blazor Date/Range picker written 100% in C#. 
 
-You can check it out here <a target='_blank' href='https://blazor.adventurouscoding.com'>https://blazor.adventurouscoding.com</a>
+You can check it out here https://blazor.adventurouscoding.com
 
 Parameters 
 <ul>

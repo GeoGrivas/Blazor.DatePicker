@@ -1,0 +1,495 @@
+﻿@using System.Globalization
+@using System.Text
+
+<div class="calendar-container" id="@RandomId" tabindex="0" @onkeyup="((e) => { HandleKeyPress(e); })">
+
+    <input value="@PickingResult" @onclick="(() => { MakeVisible(); })" @onblur="(()=> { Visible = false; })" @onchange="ValidateInput" placeholder="@Placeholder" />
+    @{ var visibilityClass = "";}
+    @if (Visible || IsSelectingDates || InlineMode || KeepVisible)
+    {
+        visibilityClass = "visible";
+    }
+    else
+    {
+        visibilityClass = "hidden";
+    }
+    @{var inline = ""; }
+    @if (!InlineMode)
+    {
+        inline = "absolute-top";
+    }
+    <div class="months-container @visibilityClass @inline" id="@(RandomId)-calendar">
+
+        @for (int j = 0; j < NumberOfMonthsToDisplay; j++)
+        {
+            <div @onmouseover="(() => {KeepVisible = true; })" tabindex="-1"
+                 @onmouseout="(()=> { KeepVisible = false; })"
+                 @onblur="(()=> { Visible = false; })"
+                 @onfocus="(() => { MakeVisible(); })">
+                <div class="month-name-container">
+                    @{ if (j == 0)
+                        {
+                            MonthOnDisplay = InitialMonth;
+                            YearOnDisplay = InitialYear;
+                            <button class="calendar-control-previous" @onclick="() => { PreviousMonth(); }" @onblur="(()=> { Visible = false; })"
+                                    @onfocus="(() => { MakeVisible(); })">
+                                <i class="arrow left"></i>
+                            </button>
+
+                            <select @bind="InitialMonth" @onblur="(()=> { Visible = false; })"
+                                    @onfocus="(() => { MakeVisible(); })">
+
+                                @foreach (var month in months)
+                                {
+                                    <option value="@month.Key">@month.Value</option>
+                                }
+                            </select> <select @bind="InitialYear" @onblur="(()=> { Visible = false; })"
+                                              @onfocus="(() => { MakeVisible(); })">
+                                @for (int i = CurrentYear - 50; i < CurrentYear + 50; i++)
+                                {
+                                    <option>@i</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+
+                            MonthOnDisplay++;
+                            if (MonthOnDisplay > 12)
+                            {
+                                YearOnDisplay++;
+                                MonthOnDisplay = 1;
+
+                            }
+                            <div class="month-name">
+                                @Culture.DateTimeFormat.GetMonthName(MonthOnDisplay) - @YearOnDisplay
+
+                            </div>
+                        }
+                        if (j == NumberOfMonthsToDisplay - 1)
+                        {
+                            <button class="calendar-control-next" @onclick="() => { NextMonth(); }" @onblur="(()=> { Visible = false; })"
+                                    @onfocus="(() => { MakeVisible(); })">
+                                <i class="arrow right"></i>
+                            </button>
+
+                        }
+
+                    }
+                </div>
+                <div class="calendar-month-container">
+                    @for (int i = 0; i < 7; i++)
+                    {
+                        <div class=" date-window">
+                            <small class="day-text-container">@(Culture.DateTimeFormat.DayNames[i].Substring(0, 3))</small>
+                        </div>
+                    }
+                    @for (int day = 1; day <= DateTime.DaysInMonth(YearOnDisplay, MonthOnDisplay); day++)
+                    {
+
+
+
+                        var date = new DateTime(YearOnDisplay, MonthOnDisplay, day);
+                        if (day == 1)
+                        {
+                            var dayOfMonth = (int)date.DayOfWeek;
+                            if (dayOfMonth < 7)
+                            {
+                                for (int emptyDay = 0; emptyDay < dayOfMonth; emptyDay++)
+                                {
+                                    <div class=" date-window">
+                                    </div>
+                                }
+                            }
+                        }
+                        <div class=" @CSSClassesBuilder(date) date-window" @onclick="() => { SelectDates(date); }" @onmouseover="() => { DateHover(date); }">
+                            <small class="day-text-container">@day</small>
+                            @if (date.Date == DateTime.Now.Date)
+                            {
+                                <span class="current-date"></span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+</div>
+@code {
+    private int MonthOnDisplay;
+    private int YearOnDisplay;
+    private int CurrentYear = DateTime.Now.Year;
+    private bool IsSelectingDates = false;
+    private DateTime? StartSelectedDate;
+    private DateTime? EndSelectedDate;
+    private string PickingResult;
+    private string RandomId;
+    private static Random random = new Random();
+    private bool KeepVisible;
+    public static string RandomString(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, length)
+          .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+    protected override void OnInitialized()
+    {
+        YearOnDisplay = InitialYear;
+        MonthOnDisplay = InitialMonth;
+        months = GetAllMonths(Culture.DateTimeFormat);
+        RandomId = RandomString(5);
+        base.OnInitialized();
+    }
+    protected override void OnParametersSet()
+    {
+        months = GetAllMonths(Culture.DateTimeFormat);
+        base.OnParametersSet();
+    }
+    private void MakeVisible()
+    {
+        if (!InlineMode)
+        {
+            Visible = true;
+            // await JSRuntime.InvokeVoidAsync("hideOnClickOutside",RandomId);
+        }
+    }
+    [Parameter]
+    public string Id { get; set; }
+    [Parameter]
+    public List<DateTime> BlockedDates { get; set; } = new List<DateTime>();
+    [Parameter]
+    public bool InlineMode { get; set; } = true;
+    [Parameter]
+    public bool SingleDate { get; set; } = false;
+    [Parameter]
+    public int MinDays { get; set; } = 2;
+    [Parameter]
+    public int MaxDays { get; set; } = 7;
+    [Parameter]
+    public int InitialYear { get; set; } = DateTime.Now.Year;
+    [Parameter]
+    public int InitialMonth { get; set; } = DateTime.Now.Month;
+    [Parameter]
+    public int NumberOfMonthsToDisplay { get; set; } = 3;
+    [Parameter]
+    public DateTime? MinimumDate { get; set; }
+    [Parameter]
+    public DateTime? MaximumDate { get; set; }
+    [Parameter]
+    public EventCallback<string> OnDateSelected { get; set; }
+    [Parameter]
+    public EventCallback<KeyValuePair<string, string>> OnDateSelectedWithId { get; set; }
+    [Parameter]
+    public bool Visible { get; set; }
+    [Parameter]
+    public CultureInfo Culture { get; set; } = CultureInfo.CurrentCulture;
+    [Parameter]
+    public string DateFormat { get; set; } = "M/d/yyyy";
+    [Parameter]
+    public string Placeholder { get; set; }
+
+    private IEnumerable<KeyValuePair<int, string>> months;
+
+    public bool IsDateBetweenSelectedDates(DateTime date)
+    {
+        return
+            StartSelectedDate.HasValue && EndSelectedDate.HasValue &&
+            (StartSelectedDate.Value < date &&
+            EndSelectedDate.Value > date ||
+            StartSelectedDate.Value > date &&
+            EndSelectedDate.Value < date);
+    }
+    public string CSSClassesBuilder(DateTime date)
+    {
+        var sb = new StringBuilder();
+        if (ShouldDateBeBlocked(date))
+        {
+            sb.Append(" disabled-date");
+        }
+        else if (ShouldBlockDate(date))
+        {
+            sb.Append(" after-blocked-date");
+        }
+        else if (ShouldDateBeBlockedWhilePicking(date))
+        {
+            sb.Append(" minmax-disabled-date");
+            if (IsDateBetweenSelectedDates(date))
+            {
+                sb.Append(" selected-date");
+            }
+        }
+        else if (IsDateSelected(date))
+        {
+            if (SingleDate)
+            {
+                sb.Append(" single-date-selected");
+            }
+            else
+            {
+                if (date.Date > StartSelectedDate.Value.Date)
+                {
+                    sb.Append(" start-date");
+
+                }
+                else if (date.Date == StartSelectedDate.Value.Date && EndSelectedDate.HasValue && EndSelectedDate.Value < StartSelectedDate.Value)
+                {
+                    sb.Append(" start-date");
+
+                }
+                else
+                {
+                    sb.Append(" end-date");
+                }
+            }
+        }
+        else if (IsDateBetweenSelectedDates(date))
+        {
+            sb.Append(" selected-date enabled");
+        }
+        else
+        {
+            sb.Append(" enabled");
+        }
+        return sb.ToString();
+    }
+    public bool IsDateSelected(DateTime date)
+    {
+        return (StartSelectedDate.HasValue && StartSelectedDate.Value == date) ||
+                (EndSelectedDate.HasValue && EndSelectedDate.Value == date);
+    }
+    public bool ShouldDateBeBlockedWhilePicking(DateTime date)
+    {
+        return !SingleDate && IsSelectingDates && !ShouldPickDate(date) && date.Date != StartSelectedDate.Value.Date;
+    }
+    public bool ShouldDateBeBlocked(DateTime date)
+    {
+        return BlockedDates.Select(x => x.Date).Contains(date.Date) || MinimumDate.HasValue && date.Date <= MinimumDate.Value.Date || MaximumDate.HasValue && date.Date >= MaximumDate.Value.Date;
+    }
+    public bool ShouldPickDate(DateTime date)
+    {
+        if (StartSelectedDate.HasValue)
+        {
+            var daysBetween = Math.Sqrt(Math.Pow((StartSelectedDate.Value.Date - date.Date).TotalDays, 2));
+            return daysBetween >= MinDays && daysBetween <= MaxDays;
+        }
+        return true;
+
+    }
+    public bool ShouldBlockDate(DateTime date)
+    {
+        if (IsSelectingDates && !SingleDate)
+        {
+            var datesBetween = new List<DateTime>();
+            var isBetweenBlockedDates = false;
+            if (date > StartSelectedDate.Value)
+            {
+                datesBetween = GetDatesBetween(StartSelectedDate.Value, date);
+            }
+            else
+            {
+                datesBetween = GetDatesBetween(date, StartSelectedDate.Value);
+            }
+            foreach (var blockedDate in BlockedDates)
+            {
+                if (datesBetween.Contains(blockedDate))
+                {
+                    isBetweenBlockedDates = true;
+                }
+            }
+            return isBetweenBlockedDates;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    public void SelectDates(DateTime date)
+    {
+        if (!ShouldDateBeBlocked(date))
+        {
+            if (IsSelectingDates && !SingleDate)
+            {
+                var isBetweenBlockedDates = ShouldBlockDate(date);
+                if (!isBetweenBlockedDates)
+                {
+                    if (StartSelectedDate.Value.Date != date.Date && ShouldPickDate(date))
+                    {
+                        if (date < StartSelectedDate.Value)
+                        {
+                            EndSelectedDate = StartSelectedDate;
+                            StartSelectedDate = date;
+                        }
+                        else
+                        {
+                            EndSelectedDate = date;
+                        }
+                        IsSelectingDates = false;
+                        PickingResult = StartSelectedDate.Value.ToString(DateFormat) + " to " + EndSelectedDate.Value.ToString(DateFormat);
+                        if (!OnDateSelectedWithId.HasDelegate)
+                        {
+                            OnDateSelected.InvokeAsync(PickingResult);
+                        }
+                        else
+                        {
+                            OnDateSelectedWithId.InvokeAsync(new KeyValuePair<string, string>(Id, PickingResult));
+                        }
+                        Visible = false;
+
+                    }
+                }
+            }
+            else
+            {
+                EndSelectedDate = null;
+                StartSelectedDate = date;
+
+                PickingResult = date.ToString(DateFormat);
+                if (!SingleDate)
+                {
+                    PickingResult += " to ...";
+                    IsSelectingDates = true;
+                }
+                else
+                {
+                    Visible = false;
+                }
+                if (!OnDateSelectedWithId.HasDelegate)
+                {
+                    OnDateSelected.InvokeAsync(PickingResult);
+                }
+                else
+                {
+                    OnDateSelectedWithId.InvokeAsync(new KeyValuePair<string, string>(Id, PickingResult));
+                }
+            }
+            KeepVisible = false;
+        }
+    }
+    public void DateHover(DateTime date)
+    {
+        if (IsSelectingDates && !SingleDate && !ShouldDateBeBlockedWhilePicking(date))
+        {
+            var isBetweenBlockedDates = ShouldBlockDate(date);
+            if (!isBetweenBlockedDates)
+            {
+                EndSelectedDate = date;
+            }
+        }
+    }
+    public void NextMonth()
+    {
+        InitialMonth += NumberOfMonthsToDisplay;
+
+        if (InitialMonth > 12)
+        {
+            InitialMonth = InitialMonth - 12;
+            InitialYear++;
+        }
+    }
+    public void PreviousMonth()
+    {
+        InitialMonth -= NumberOfMonthsToDisplay;
+        if (InitialMonth < 1)
+        {
+            InitialMonth = InitialMonth + 12;
+            InitialYear--;
+        }
+    }
+    void HandleKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            Visible = false;
+            KeepVisible = false;
+        }
+        else if (args.Key == "Tab")
+        {
+            Visible = true;
+        }
+
+    }
+    private List<DateTime> GetDatesBetween(DateTime start, DateTime end)
+    {
+        var dates = new List<DateTime>();
+
+        for (var dt = start; dt <= end; dt = dt.AddDays(1))
+        {
+            dates.Add(dt);
+        }
+        return dates;
+    }
+    private static IEnumerable<KeyValuePair<int, string>> GetAllMonths(DateTimeFormatInfo datetimeFormatInfo)
+    {
+        for (int i = 1; i <= 12; i++)
+        {
+            yield return new KeyValuePair<int, string>(i, datetimeFormatInfo.GetMonthName(i));
+        }
+    }
+    private void ValidateInput(ChangeEventArgs e)
+    {
+        bool ErrorParsing = false;
+        if (SingleDate)
+        {
+            DateTime date;
+            if (DateTime.TryParseExact(e.Value.ToString(), DateFormat, null, DateTimeStyles.None, out date) && !ShouldDateBeBlocked(date))
+            {
+                IsSelectingDates = false;
+                SelectDates(date);
+            }
+            else
+            {
+                ErrorParsing = true;
+            }
+        }
+        else
+        {
+            var dates = e.Value.ToString().Split(new string[] { " to " },StringSplitOptions.None);
+            DateTime firstDate;
+            DateTime secondDate;
+            if (DateTime.TryParseExact(dates[0], DateFormat, null, DateTimeStyles.None, out firstDate) && !ShouldDateBeBlocked(firstDate))
+            {
+                IsSelectingDates = false;
+                SelectDates(firstDate);
+            }
+            else
+            {
+                ErrorParsing = true;
+            }
+            if (dates.Length > 1)
+            {
+                if (DateTime.TryParseExact(dates[1], DateFormat, null, DateTimeStyles.None, out secondDate) && !ShouldDateBeBlocked(secondDate))
+                {
+                    SelectDates(secondDate);
+                }
+                else
+                {
+                    ErrorParsing = true;
+                }
+            }
+        }
+        if (ErrorParsing)
+        {
+            ResetCalendarInputs();
+        }
+    }
+    private async void ResetCalendarInputs()
+    {
+        IsSelectingDates = false;
+        StartSelectedDate = null;
+        EndSelectedDate = null;
+        if (PickingResult == null)
+            PickingResult = "";
+        else
+            PickingResult = null;
+
+        if (!OnDateSelectedWithId.HasDelegate)
+        {
+            await OnDateSelected.InvokeAsync(string.Empty);
+        }
+        else
+        {
+            await OnDateSelectedWithId.InvokeAsync(new KeyValuePair<string, string>(Id, string.Empty));
+        }
+    }
+}
